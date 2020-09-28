@@ -62,6 +62,8 @@ typedef struct busio_jacdac_obj {
     nrfx_uarte_t* uarte;
     nrfx_timer_t* timer;
 
+    uint8_t refcount;
+
     void (*tim_cb)(struct busio_jacdac_obj*);
 
     uint8_t txHead;

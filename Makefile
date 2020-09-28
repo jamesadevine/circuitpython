@@ -267,7 +267,7 @@ mimxrt10xx:
 	$(MAKE) -C ports/mimxrt10xx BOARD=feather_mimxrt1011
 
 nrf:
-	$(MAKE) -C ports/nrf BOARD=feather_nrf52840_express
+	$(MAKE) -C ports/nrf BOARD=clue_nrf52840_express
 
 stm:
 	$(MAKE) -C ports/stm BOARD=feather_stm32f405_express

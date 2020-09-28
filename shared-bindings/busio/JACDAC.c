@@ -114,9 +114,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(busio_jacdac___exit___obj, 4, 4, busi
 STATIC mp_obj_t busio_jacdac_send(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_buffer, ARG_start, ARG_end };
     static const mp_arg_t allowed_args[] = {
-        { MP_QSTR_buffer,     MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
-        { MP_QSTR_start,      MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
-        { MP_QSTR_end,        MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = INT_MAX} },
+        { MP_QSTR_buffer,     MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} }
     };
     busio_jacdac_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
     check_for_deinit(self);
@@ -127,16 +125,14 @@ STATIC mp_obj_t busio_jacdac_send(size_t n_args, const mp_obj_t *pos_args, mp_ma
     // setup buffer
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(args[ARG_buffer].u_obj, &bufinfo, MP_BUFFER_READ);
-    int32_t start = args[ARG_start].u_int;
     size_t length = bufinfo.len;
-    normalize_buffer_bounds(&start, args[ARG_end].u_int, &length);
 
     // empty buffer
     if (length == 0) {
         return mp_const_none;
     }
 
-    common_hal_busio_jacdac_send(self, ((uint8_t*)bufinfo.buf) + start, length);
+    common_hal_busio_jacdac_send(self, ((uint8_t*)bufinfo.buf), length);
     return mp_const_none;
 }
 MP_DEFINE_CONST_FUN_OBJ_KW(busio_jacdac_send_obj, 2, busio_jacdac_send);

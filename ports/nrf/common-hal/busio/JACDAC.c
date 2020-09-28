@@ -47,6 +47,15 @@
 #define JD_FRAME_SIZE(pkt) ((pkt)->size + 12)
 #define JD_PERIPHERALS 2
 
+#define JD_LOG_SIZE     512
+volatile uint32_t jd_log[JD_LOG_SIZE] = {0};
+static uint32_t logidx = 0;
+
+void log_char(char c) {
+    jd_log[logidx] = c;
+    logidx = (logidx + 1) % JD_LOG_SIZE;
+}
+
 
 // states
 #define ACTIVE 0x03
@@ -68,7 +77,7 @@ static void set_timer(busio_jacdac_obj_t* self, int delta, cb_t cb);
 */
 
 
-static busio_jacdac_obj_t* jd_instance = NULL
+busio_jacdac_obj_t* jd_instance = NULL;
 
 static nrfx_uarte_t nrfx_uartes[] = {
 #if NRFX_CHECK(NRFX_UARTE0_ENABLED)
@@ -185,7 +194,7 @@ static inline void set_status(busio_jacdac_obj_t* self, uint16_t status) {
 
 // clear the given status
 static inline void clr_status(busio_jacdac_obj_t* self, uint16_t status) {
-    self->status &= ~status;
+    self->status &= ~(status);
 }
 
 // check if the given status is set or not
@@ -201,7 +210,8 @@ static inline bool is_status(busio_jacdac_obj_t* self, uint16_t status) {
 
 static void uart_configure_tx(busio_jacdac_obj_t* self, int enable) {
     if (enable && !is_status(self, TX_CONFIGURED)) {
-        nrf_gpio_cfg_output(self->pin);
+        NRF_P0->DIR |= (1 << self->pin);
+        NRF_P0->PIN_CNF[self->pin] =  3 << 2; // this overrides DIR setting above
         self->uarte->p_reg->PSEL.TXD = self->pin;
         self->uarte->p_reg->EVENTS_ENDTX = 0;
         self->uarte->p_reg->ENABLE = 8;
@@ -219,7 +229,8 @@ static void uart_configure_tx(busio_jacdac_obj_t* self, int enable) {
 
 static void uart_configure_rx(busio_jacdac_obj_t* self, int enable) {
     if (enable && !is_status(self, RX_CONFIGURED)) {
-        nrf_gpio_cfg_input(self->pin, NRF_GPIO_PIN_PULLUP);
+        NRF_P0->DIR &= ~(1 << self->pin);
+        NRF_P0->PIN_CNF[self->pin] =  3 << 2; // this overrides DIR setting above
         self->uarte->p_reg->PSEL.RXD = self->pin;
         self->uarte->p_reg->EVENTS_ENDRX = 0;
         self->uarte->p_reg->EVENTS_ERROR = 0;
@@ -370,8 +381,9 @@ static void rx_done(busio_jacdac_obj_t *self) {
 */
 
 static void start_tx(busio_jacdac_obj_t* self) {
-
+    log_char('S');
     clr_status(self, TX_PENDING);
+    set_status(self, TX_ACTIVE);
 
     uint32_t val = gpio_get(self);
     // try to pull the line low, provided it currently reads as high
@@ -392,10 +404,12 @@ static void start_tx(busio_jacdac_obj_t* self) {
 
     // setup UART tx
     set_pin_tx(self);
+    enable_tx_interrupts(self);
     nrfx_uarte_tx(self->uarte, (uint8_t*)self->tx_buffer, JD_FRAME_SIZE(self->tx_buffer));
 }
 
 static void tx_done(busio_jacdac_obj_t *self) {
+    log_char('D');
     disable_tx_interrupts(self);
 
      if (!is_status(self, TX_ACTIVE))
@@ -419,28 +433,27 @@ static void tx_done(busio_jacdac_obj_t *self) {
 /*************************************************************************************
 *   Timers
 */
-static void tick(busio_jacdac_obj_t* self) {
-    set_timer_for_ticks(self);
+static void set_timer(busio_jacdac_obj_t* self, int delta, cb_t cb) {
+    self->tim_cb = cb;
+    nrfx_timer_compare(self->timer, NRF_TIMER_CC_CHANNEL0, nrfx_timer_capture(self->timer, NRF_TIMER_CC_CHANNEL1) + delta, true);
 }
 
 static void set_timer_for_ticks(busio_jacdac_obj_t* self) {
-    target_disable_irq();
-
+    log_char('s');
     if (!is_status(self, RX_ACTIVE)) {
 
         int delta = 10000;
-        self->tim_cb = tick;
+        log_char('R');
+        cb_t cb = set_timer_for_ticks;
 
         if (is_status(self, TX_PENDING) && !is_status(self, TX_ACTIVE)){
-            delta = 10000;
-            self->tim_cb = start_tx;
+            log_char('q');
+            delta = random_around(150);
+            cb = start_tx;
         }
 
-        nrfx_timer_clear(self->timer);
-        nrfx_timer_compare(self->timer, NRF_TIMER_CC_CHANNEL0, delta, true);
+        set_timer(self, delta, cb);
     }
-
-    target_enable_irq();
 }
 
 
@@ -448,6 +461,20 @@ static void set_timer_for_ticks(busio_jacdac_obj_t* self) {
 /*************************************************************************************
 *   Interrupt handlers
 */
+
+// interrupt handler for timers
+static void timer_irq(nrf_timer_event_t event_type, void* context) {
+    busio_jacdac_obj_t* self = (busio_jacdac_obj_t*) context;
+    log_char('i');
+    if (event_type == NRF_TIMER_EVENT_COMPARE0) {
+        cb_t f = self->tim_cb;
+        if (f) {
+            log_char('O');
+            self->tim_cb = NULL;
+            f(self);
+        }
+    }
+}
 
 
 // interrupt handler for UART
@@ -471,28 +498,13 @@ static void uart_irq(const nrfx_uarte_event_t* event, void* context) {
      }
 }
 
-// interrupt handler for timers
-static void timer_irq(nrf_timer_event_t event_type, void* context) {
-    busio_jacdac_obj_t* self = (busio_jacdac_obj_t*) context;
-
-    if (event_type == NRF_TIMER_EVENT_COMPARE0) {
-        cb_t f = self->tim_cb;
-        if (f != NULL) {
-            self->tim_cb = NULL;
-            f(self);
-        }
-    }
-}
-
 // interrupt handler for GPIO
 static void gpiote_callback(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-    busio_jacdac_obj_t* self = get_peripheral(pin);
-    disable_gpio_interrupts(self);
-    start_rx(self);
+    disable_gpio_interrupts(jd_instance);
+    start_rx(jd_instance);
 }
 
 static void initialize_gpio(busio_jacdac_obj_t *self) {
-
     nrfx_gpiote_in_config_t cfg = {
         .sense = NRF_GPIOTE_POLARITY_HITOLO,
         .pull = NRF_GPIO_PIN_PULLUP, // idle_state ? NRF_GPIO_PIN_PULLDOWN : NRF_GPIO_PIN_PULLUP,
@@ -508,26 +520,22 @@ static void initialize_gpio(busio_jacdac_obj_t *self) {
 }
 
 static void initialize_timer(busio_jacdac_obj_t *self) {
-    if (self->timer_refcount == 0) {
-        self->timer = nrf_peripherals_allocate_timer();
-        if (self->timer == NULL) {
-            target_panic();
-            mp_raise_RuntimeError(translate("All timers in use"));
-        }
-
-        nrfx_timer_config_t timer_config = {
-            .frequency = NRF_TIMER_FREQ_16MHz,
-            .mode = NRF_TIMER_MODE_TIMER,
-            .bit_width = NRF_TIMER_BIT_WIDTH_32,
-            .interrupt_priority = NRFX_TIMER_DEFAULT_CONFIG_IRQ_PRIORITY,
-            .p_context = self
-        };
-
-        nrfx_timer_init(self->timer, &timer_config, &timer_irq);
-        nrfx_timer_enable(self->timer);
+    self->timer = nrf_peripherals_allocate_timer();
+    if (self->timer == NULL) {
+        target_panic();
+        mp_raise_RuntimeError(translate("All timers in use"));
     }
-    self->timer_refcount++;
 
+    nrfx_timer_config_t timer_config = {
+        .frequency = NRF_TIMER_FREQ_1MHz,
+        .mode = NRF_TIMER_MODE_TIMER,
+        .bit_width = NRF_TIMER_BIT_WIDTH_32,
+        .interrupt_priority = 1,
+        .p_context = self
+    };
+
+    nrfx_timer_init(self->timer, &timer_config, &timer_irq);
+    nrfx_timer_enable(self->timer);
 }
 
 static void initialize_uart(busio_jacdac_obj_t *self) {
@@ -567,59 +575,53 @@ void common_hal_busio_jacdac_construct(busio_jacdac_obj_t* self, const mcu_pin_o
     if (jd_instance != NULL)
     {
         self = jd_instance;
+        self->refcount++;
         return;
     }
 
+    jd_instance = self;
+
+    self->refcount = 1;
     self->pin = pin->number;
     self->status = 0;
     self->rx_buffer = gc_alloc(sizeof(jd_frame_t), false, true);
     self->tx_buffer = gc_alloc(sizeof(jd_frame_t), false, true);
 
-    allocate_peripheral(self);
-
     claim_pin(pin);
-    memset(self->rxArray, 0, sizeof(jd_frame_t*) * JD_RX_ARRAY_SIZE);
-    memset(self->txArray, 0, sizeof(jd_frame_t*) * JD_TX_ARRAY_SIZE);
+    // memset(self->rxArray, 0, sizeof(jd_frame_t*) * JD_RX_ARRAY_SIZE);
+    // memset(self->txArray, 0, sizeof(jd_frame_t*) * JD_TX_ARRAY_SIZE);
     self->txTail = 0;
     self->txHead = 0;
     self->rxTail = 0;
     self->rxHead = 0;
 
     initialize_gpio(self);
-    initialize_buffers(self);
     initialize_uart(self);
-    initilaize_timer(self);
+    initialize_timer(self);
 
-    set_timer_for_ticks(self);
+    log_char('I');
 }
 
 
 void common_hal_busio_jacdac_deinit(busio_jacdac_obj_t* self) {
-    free_peripheral(self);
-
     if (common_hal_busio_jacdac_deinited(self))
         return;
 
     nrfx_gpiote_in_event_disable(self->pin);
     nrfx_gpiote_in_uninit(self->pin);
 
-    // timer
-    self->timer_refcount--;
-    if (self->timer_refcount == 0) {
+    self->refcount--;
+
+    if (self->refcount == 0) {
         nrf_peripherals_free_timer(self->timer);
-    }
-
-    // uart
-    if (self->uarte != NULL)
         nrfx_uarte_uninit(self->uarte);
-
-    // pin
-    reset_pin_number(self->pin);
-    self->pin = NO_PIN;
+        reset_pin_number(self->pin);
+        self->pin = NO_PIN;
+    }
 }
 
 bool common_hal_busio_jacdac_deinited(busio_jacdac_obj_t *self) {
-    return self->pin == NO_PIN;
+    return self->pin == NO_PIN || jd_instance == NULL;
 }
 
 void common_hal_busio_jacdac_send(busio_jacdac_obj_t *self, const uint8_t *data, size_t len) {
@@ -629,19 +631,27 @@ void common_hal_busio_jacdac_send(busio_jacdac_obj_t *self, const uint8_t *data,
     // notify that a new frame is present
     set_status(self, TX_PENDING);
     if (!is_status(self, ACTIVE))
+    {
         set_timer_for_ticks(self);
+        log_char('p');
+    }
+
+    log_char('T');
 }
 
 void common_hal_busio_jacdac_receive(busio_jacdac_obj_t *self, uint8_t *data, size_t len) {
-    jd_frame_t* t = popRxArray(self);
+    // jd_frame_t* t = popRxArray(self);
 
-    if (t != NULL)
-        memcpy(data, t, sizeof(*t));
+    // if (t != NULL)
+    //     memcpy(data, t, sizeof(*t));
 
-    gc_free(t);
+    // gc_free(t);
 }
 
 void jacdac_reset(void) {
+    if (!jd_instance)
+        return;
+
     // reset gpiote
     if ( nrfx_gpiote_is_init() ) {
         nrfx_gpiote_uninit();
@@ -649,20 +659,11 @@ void jacdac_reset(void) {
 
     nrfx_gpiote_init(NRFX_GPIOTE_CONFIG_IRQ_PRIORITY);
 
-
-    // free all peripherals
-    for (uint8_t i = 0; i < JD_PERIPHERALS; i++) {
-
-        // reset timers
-        if (peripherals[i]->timer != NULL)
-            nrf_peripherals_free_timer(peripherals[i]->timer);
-        peripherals[i]->timer_refcount = 0;
-
-
-        peripherals[i] = NULL;
-    }
+    nrf_peripherals_free_timer(jd_instance->timer);
 
     // reset uart
     for (size_t i = 0 ; i < MP_ARRAY_SIZE(nrfx_uartes); i++)
-        nrfx_uarte_uninit(&nrfx_uartes[i]);
+        nrfx_uarte_uninit(jd_instance->uarte);
+
+    jd_instance = NULL;
 }
