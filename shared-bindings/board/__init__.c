@@ -114,6 +114,31 @@ mp_obj_t board_uart(void) {
 #endif
 MP_DEFINE_CONST_FUN_OBJ_0(board_uart_obj, board_uart);
 
+
+//| def JACDAC() -> busio.JACDAC:
+#if BOARD_JACDAC
+mp_obj_t board_jacdac(void) {
+    mp_obj_t singleton = common_hal_board_get_jacdac();
+    if (singleton != NULL) {
+        return singleton;
+    }
+
+    assert_pin_free(DEFAULT_JACDAC_BUS);
+
+    return common_hal_board_create_jacdac();
+}
+#else
+mp_obj_t board_jacdac(void) {
+    mp_raise_NotImplementedError_varg(translate("No default %q bus"), MP_QSTR_JACDAC);
+    return NULL;
+}
+
+#endif
+MP_DEFINE_CONST_FUN_OBJ_0(board_jacdac_obj, board_jacdac);
+
+
+
+
 const mp_obj_module_t board_module = {
     .base = { &mp_type_module },
     .globals = (mp_obj_dict_t*)&board_module_globals,

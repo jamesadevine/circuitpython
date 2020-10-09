@@ -1,9 +1,9 @@
 /*
- * This file is part of the MicroPython project, http://micropython.org/
+ * This file is part of the Micro Python project, http://micropython.org/
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2016 Scott Shawcroft
+ * Copyright (c) 2020 J Devine, M Lambrichts
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,29 +24,23 @@
  * THE SOFTWARE.
  */
 
-#ifndef MICROPY_INCLUDED_SHARED_BINDINGS_BOARD___INIT___H
-#define MICROPY_INCLUDED_SHARED_BINDINGS_BOARD___INIT___H
+#ifndef MICROPY_INCLUDED_SHARED_BINDINGS_BUSIO_JACDAC_H
+#define MICROPY_INCLUDED_SHARED_BINDINGS_BUSIO_JACDAC_H
 
-#include "py/obj.h"
+#include "common-hal/microcontroller/Pin.h"
+#include "common-hal/busio/JACDAC.h"
+#include "py/ringbuf.h"
 
-#include "shared-bindings/microcontroller/Pin.h"  // for the pin definitions
+extern const mp_obj_type_t busio_jacdac_type;
 
-extern const mp_obj_dict_t board_module_globals;
 
-mp_obj_t common_hal_board_get_i2c(void);
-mp_obj_t common_hal_board_create_i2c(void);
-MP_DECLARE_CONST_FUN_OBJ_0(board_i2c_obj);
+// Construct an underlying UART object.
+extern void common_hal_busio_jacdac_construct(busio_jacdac_obj_t *context, const mcu_pin_obj_t * pin);
 
-mp_obj_t common_hal_board_get_spi(void);
-mp_obj_t common_hal_board_create_spi(void);
-MP_DECLARE_CONST_FUN_OBJ_0(board_spi_obj);
+extern void common_hal_busio_jacdac_deinit(busio_jacdac_obj_t *context);
+extern bool common_hal_busio_jacdac_deinited(busio_jacdac_obj_t *context);
 
-mp_obj_t common_hal_board_get_uart(void);
-mp_obj_t common_hal_board_create_uart(void);
-MP_DECLARE_CONST_FUN_OBJ_0(board_uart_obj);
+extern int common_hal_busio_jacdac_send(busio_jacdac_obj_t *context, const uint8_t *data, size_t len);
+extern int common_hal_busio_jacdac_receive(busio_jacdac_obj_t *context, uint8_t *data, size_t len);
 
-mp_obj_t common_hal_board_get_jacdac(void);
-mp_obj_t common_hal_board_create_jacdac(void);
-MP_DECLARE_CONST_FUN_OBJ_0(board_jacdac_obj);
-
-#endif  // MICROPY_INCLUDED_SHARED_BINDINGS_BOARD___INIT___H
+#endif  // MICROPY_INCLUDED_SHARED_BINDINGS_BUSIO_JACDAC_H

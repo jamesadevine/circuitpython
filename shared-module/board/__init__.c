@@ -33,6 +33,7 @@
 #include "shared-bindings/busio/I2C.h"
 #include "shared-bindings/busio/SPI.h"
 #include "shared-bindings/busio/UART.h"
+#include "shared-bindings/busio/JACDAC.h"
 #endif
 
 #if CIRCUITPY_DISPLAYIO
@@ -134,6 +135,24 @@ mp_obj_t common_hal_board_create_uart(void) {
 }
 #endif
 
+/*
+#if BOARD_JACDAC
+mp_obj_t common_hal_board_get_jacdac(void) {
+    return MP_STATE_VM(shared_jacdac_bus);
+}
+
+mp_obj_t common_hal_board_create_jacdac(void) {
+    busio_jacdac_obj_t *self = m_new_ll_obj(busio_jacdac_obj_t);
+    self->base.type = &busio_jacdac_type;
+
+    const mcu_pin_obj_t* bus = MP_OBJ_TO_PTR(DEFAULT_JACDAC_BUS);
+
+    common_hal_busio_jacdac_construct(self, bus);
+    MP_STATE_VM(shared_jacdac_bus) = MP_OBJ_FROM_PTR(self);
+    return MP_STATE_VM(shared_jacdac_bus);
+}
+#endif
+*/
 void reset_board_busses(void) {
 #if BOARD_I2C
     bool display_using_i2c = false;
@@ -177,4 +196,9 @@ void reset_board_busses(void) {
 #if BOARD_UART
     MP_STATE_VM(shared_uart_bus) = NULL;
 #endif
+/*
+#if BOARD_JACDAC
+    MP_STATE_VM(shared_jacdac_bus) = NULL;
+#endif
+*/
 }

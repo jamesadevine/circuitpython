@@ -35,6 +35,7 @@
 #include "shared-bindings/busio/OneWire.h"
 #include "shared-bindings/busio/SPI.h"
 #include "shared-bindings/busio/UART.h"
+#include "shared-bindings/busio/JACDAC.h"
 
 #include "py/runtime.h"
 
@@ -75,6 +76,7 @@ STATIC const mp_rom_map_elem_t busio_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_SPI),   MP_ROM_PTR(&busio_spi_type) },
     { MP_ROM_QSTR(MP_QSTR_OneWire),   MP_ROM_PTR(&busio_onewire_type) },
     { MP_ROM_QSTR(MP_QSTR_UART),   MP_ROM_PTR(&busio_uart_type) },
+    { MP_ROM_QSTR(MP_QSTR_JACDAC),   MP_ROM_PTR(&busio_jacdac_type) },
 };
 
 STATIC MP_DEFINE_CONST_DICT(busio_module_globals, busio_module_globals_table);

@@ -315,6 +315,7 @@ SRC_COMMON_HAL_ALL = \
 	busio/I2C.c \
 	busio/SPI.c \
 	busio/UART.c \
+	busio/JACDAC.c \
 	busio/__init__.c \
 	camera/__init__.c \
 	camera/Camera.c \
@@ -402,7 +403,7 @@ $(filter $(SRC_PATTERNS), \
 )
 
 SRC_BINDINGS_ENUMS += \
-	util.c
+	util.c \
 
 SRC_SHARED_MODULE_ALL = \
 	_bleio/Address.c \

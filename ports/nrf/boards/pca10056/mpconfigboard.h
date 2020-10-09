@@ -42,6 +42,8 @@
 #define DEFAULT_UART_BUS_RX         (&pin_P1_01)
 #define DEFAULT_UART_BUS_TX         (&pin_P1_02)
 
+#define DEFAULT_JACDAC_BUS         (&pin_P1_02)
+
 // Flash operation mode is determined by MICROPY_QSPI_DATAn pin configuration.
 // A pin config is valid if it is defined and its value is not 0xFF.
 // Quad   mode: If all DATA0 --> DATA3 are valid
